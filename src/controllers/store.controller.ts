@@ -1,6 +1,6 @@
 const mongoose = require('mongoose'), { Schema, Document, UpdateWriteOpResult } = mongoose;
 import { Request, Response } from 'express';
-var Store = require('../models/Store.model');
+var Store = require('../models/store.model');
 
 const addNew = async (req: Request, res: Response) => {
     try {
