@@ -116,8 +116,18 @@ const getNewAccessToken = async (req: Request, res: Response) => {
   }
 };
 
+const uploadImage = async (req: Request, res: Response) => {
+  try {
+
+    return res.status(200).json({ success: true, imageUrl: req.body.imageUrl });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error uploading image' });
+  }
+}
+
 export default {
   register,
   login,
-  getNewAccessToken
+  getNewAccessToken,
+  uploadImage
 };
