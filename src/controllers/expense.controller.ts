@@ -138,15 +138,6 @@ const expenseByCategory = async (req: Request, res: Response) => {
 
     const totalByCategory = await Expense.aggregate([
       {
-        $match: { category: category.toString() },
-      },
-      {
-        $group: {
-          _id: '$category',
-          total: { $sum: '$amount' },
-        },
-      },
-      {
         $lookup: {
           from: 'people',
           localField: 'person',
@@ -158,10 +149,14 @@ const expenseByCategory = async (req: Request, res: Response) => {
         $unwind: '$personData',
       },
       {
+        $match: { category: category.toString() },
+      },
+      {
         $project: {
           _id: 1,
-          category: '$_id',
-          total: 1,
+          amount: 1,
+          category: 1,
+          date: 1,
           personData: 1,
         },
       },
@@ -176,6 +171,7 @@ const expenseByCategory = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
 // Update an expense
 const updateExpense = async (req: Request, res: Response) => {
   try {
