@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import moment from 'moment';
 import { Request, Response } from 'express';
 import { Expense } from "../models/expense.model";
 import { Person } from "../models/person.model";
@@ -57,13 +58,14 @@ const getYearlyExpense = async (req: Request, res: Response) => {
       },
       {
         $project: {
-          _id: 1,
-          year: '$_id.year',
+          _id: 0, // Keep the original _id field
+          month: '$_id.month',
           total: 1,
           personData: 1,
         },
       },
     ]);
+
 
     res.status(200).json({
       success: true,
@@ -220,11 +222,253 @@ const deleteExpense = async (req: Request, res: Response) => {
   }
 }
 
+const getMonthlyExpense = async (req: Request, res: Response) => {
+  try {
+    const { personId } = req.params;
+
+    const result = await Expense.aggregate([
+      {
+        $match: { person: new mongoose.Types.ObjectId(personId) },
+      },
+      {
+        $group: {
+          _id: { month: { $month: '$date' } },
+          total: { $sum: '$amount' },
+          personId: { $first: '$person' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'people',
+          localField: 'personId',
+          foreignField: '_id',
+          as: 'personData',
+        },
+      },
+      {
+        $unwind: '$personData',
+      },
+      {
+        $project: {
+          _id: 0, // Keep the original _id field
+          month: '$_id.month',
+          total: 1,
+          personData: 1,
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+const getAverageMonthlyExpense = async (req: Request, res: Response) => {
+  try {
+    const { personId } = req.params;
+
+    const result = await Expense.aggregate([
+      {
+        $match: { person: new mongoose.Types.ObjectId(personId) },
+      },
+      {
+        $group: {
+          _id: { month: { $month: '$date' } },
+          average: { $avg: '$amount' },
+          personId: { $first: '$person' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'people',
+          localField: 'personId',
+          foreignField: '_id',
+          as: 'personData',
+        },
+      },
+      {
+        $unwind: '$personData',
+      },
+      {
+        $project: {
+          _id: 0,
+          month: '$_id.month',
+          average: 1,
+          personData: 1,
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+const getLatestExpenses = async (req: Request, res: Response) => {
+  try {
+    const { personId } = req.params;
+
+    const result = await Expense.find({ person: personId })
+      .sort({ _id: -1 })
+      .limit(2).populate('person')
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+const getPersonsWithHighestExpense = async (req: Request, res: Response) => {
+  try {
+    const result = await Expense.aggregate([
+      {
+        $group: {
+          _id: '$person',
+          total: { $sum: '$amount' },
+        },
+      },
+      {
+        $sort: { total: -1 },
+      },
+      {
+        $limit: 1,
+      },
+      {
+        $lookup: {
+          from: 'people',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'personData',
+        },
+      },
+      {
+        $unwind: '$personData',
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+const getFilteredExpenses = async (req: Request, res: Response) => {
+  try {
+    const { personId, startDate, endDate, minAmount, maxAmount, categories } = req.query;
+
+    const matchConditions: any[] = [];
+
+    if (personId) {
+      matchConditions.push({ person: new mongoose.Types.ObjectId(personId as string) });
+    }
+
+    if (startDate && endDate) {
+
+      const formattedStartDate = moment(startDate as string);
+      const formattedEndDate = moment(endDate as string).endOf('day');
+
+      if (formattedStartDate.isValid() && formattedEndDate.isValid()) {
+
+        matchConditions.push({
+          date: {
+            $gte: formattedStartDate.toDate(),
+            $lte: formattedEndDate.toDate(),
+          },
+        });
+      } else {
+        console.error('Invalid date format');
+        return res.status(400).json({ error: 'Invalid date format' });
+        
+      }
+    }
+
+    if (minAmount || maxAmount) {
+      const amountCondition: any = {};
+      if (minAmount) {
+        amountCondition.$gte = parseFloat(minAmount as string);
+      }
+      if (maxAmount) {
+        amountCondition.$lte = parseFloat(maxAmount as string);
+      }
+      matchConditions.push({ amount: amountCondition });
+    }
+
+    if (categories) {
+      const categoryConditions: any[] = [];
+      const categoryList = (categories as string).split(',');
+      categoryList.forEach((category: string) => {
+        categoryConditions.push({ category: category.trim() });
+      });
+      matchConditions.push({ $or: categoryConditions });
+    }
+
+    const result = await Expense.aggregate([
+      {
+        $match: {
+          $and: matchConditions,
+        },
+      },
+      {
+        $lookup: {
+          from: 'people',
+          localField: 'person',
+          foreignField: '_id',
+          as: 'personData',
+        },
+      },
+      {
+        $unwind: '$personData',
+      },
+      {
+        $project: {
+          _id: 1,
+          category: 1,
+          date: 1,
+          amount: 1,
+          personData: 1,
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+
 module.exports = {
   addNewExpense,
   getYearlyExpense,
   expenseWithDateRange,
   expenseByCategory,
   updateExpense,
-  deleteExpense
+  deleteExpense,
+  getMonthlyExpense,
+  getAverageMonthlyExpense,
+  getLatestExpenses,
+  getPersonsWithHighestExpense,
+  getFilteredExpenses
 }

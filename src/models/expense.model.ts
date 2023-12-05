@@ -5,7 +5,7 @@ interface IExpense extends Document {
   amount: number;
   category: string;
   date: Date;
-  person: Types.ObjectId; // Correct type for referencing Person
+  person: Types.ObjectId;
 }
 
 const expenseSchema = new Schema<IExpense>({
