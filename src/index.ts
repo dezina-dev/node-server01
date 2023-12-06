@@ -6,6 +6,9 @@ require("dotenv").config();
 import customerRouter from './routes/customer.routes';
 import orderRouter from './routes/order.routes';
 import storeRouter from './routes/store.routes';
+import passengerRouter from './routes/passenger.routes';
+import flightRouter from './routes/flight.routes';
+import bookingRouter from './routes/booking.routes';
 
 var app = express();
 
@@ -22,6 +25,9 @@ app.use(cors());
 app.use('/customer', customerRouter);
 app.use('/order', orderRouter);
 app.use('/store', storeRouter);
+app.use('/passenger', passengerRouter);
+app.use('/flight', flightRouter);
+app.use('/booking', bookingRouter);
 
 mongoose.connect(process.env.DB, {
   //useNewUrlParser: true,
